@@ -55,15 +55,31 @@ def read_all_tidal_data(foldername):
     return pd.concat(frames).sort_index()
 
 def extract_single_year_remove_mean(year, data):
-   
+    """Extracts one year of data and removes its mean."""
+    yr = int(year)
+    # copy subset for the given year from data
+    subset = data[data.index.year == yr].copy()
+    # remove mean
+    subset['Sea Level'] -= subset['Sea Level'].mean()
 
-    return 
+    return subset 
 
 
 def extract_section_remove_mean(start, end, data):
+    """Extracts a date section and removes its mean."""
+    # make start and end into pandas format
+    start_ts = pd.to_datetime(start, format='%Y%m%d')
+    # 1 day - 1 second = end of the day
+    end_ts = (
+        pd.to_datetime(end, format='%Y%m%d')
+        + pd.Timedelta(days=1)
+        - pd.Timedelta(seconds=1)
+    )
+    #make subset and remove mean
+    chunk = data.loc[start_ts:end_ts].copy()
+    chunk['Sea Level'] -= chunk['Sea Level'].mean()
 
-
-    return 
+    return chunk 
 
 
 def join_data(data1, data2):
