@@ -8,6 +8,8 @@ from pylint.reporters import CollectingReporter
 from dataclasses import asdict
 import pandas as pd
 import numpy as np
+import pytz
+import datetime
 
 class TestTidalAnalysis():
     
@@ -166,18 +168,18 @@ class TestRegression():
     def test_whitby_regression(self):
 
         from subprocess import run
-        result = run(["python3","tidal_analysis.py","-v","data/whitby"], capture_output=True, check=True)
+        result = run(["python","tidal_analysis.py","-v","data/whitby"], capture_output=True, check=True)
         assert len(result.stdout) > 25
 
     def test_aberdeen_regression(self):
 
         from subprocess import run
-        result = run(["python3","tidal_analysis.py","--verbose","data/aberdeen"], capture_output=True, check=True)
+        result = run(["python","tidal_analysis.py","--verbose","data/aberdeen"], capture_output=True, check=True)
         assert len(result.stdout) > 25
 
     def test_dover_regression(self):
 
         from subprocess import run
-        result = run(["python3","tidal_analysis.py","data/dover"], capture_output=True, check=True)
+        result = run(["python","tidal_analysis.py","data/dover"], capture_output=True, check=True)
         assert len(result.stdout) > 25
 
