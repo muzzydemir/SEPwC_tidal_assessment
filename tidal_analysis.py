@@ -83,8 +83,10 @@ def extract_section_remove_mean(start, end, data):
 
 
 def join_data(data1, data2):
-
-    return 
+    """Joins two dataframes filling missing values."""
+    # concatenate and sort
+    # missing columns filled with NaN
+    return pd.concat([data1, data2]).sort_index()
 
 
 
