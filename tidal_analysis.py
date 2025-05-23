@@ -11,6 +11,7 @@ import re
 
 import pandas as pd
 from scipy.stats import linregress
+import uptide
 from matplotlib.dates import date2num
 
 
@@ -109,9 +110,23 @@ def sea_level_rise(data):
     return slope, p_value
 
 def tidal_analysis(data, constituents, start_datetime):
-
-
-    return 
+    """Analysis via uptide on the mean removed segment."""
+    # uses dropna to remove NaN values in sea level column
+    clean = data.dropna(subset=['Sea Level'])
+    # strip timezoneinfo if present
+    if hasattr(start_datetime, 'tzinfo') and start_datetime.tzinfo is not None:
+        start_datetime = start_datetime.replace(tzinfo=None)
+    #set up tides object
+    tide = uptide.Tides(constituents)
+    tide.set_initial_time(start_datetime)
+    # convert timestamp to seconds
+    seconds = (clean.index - start_datetime).total_seconds()
+    amp, phase = uptide.harmonic_analysis(
+        tide,
+        clean['Sea Level'].values,
+        seconds
+    )
+    return amp, phase
 
 def get_longest_contiguous_data(data):
 
