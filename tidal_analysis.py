@@ -66,7 +66,7 @@ def extract_single_year_remove_mean(year, data):
     # remove mean
     subset['Sea Level'] -= subset['Sea Level'].mean()
 
-    return subset 
+    return subset
 
 
 def extract_section_remove_mean(start, end, data):
@@ -83,7 +83,7 @@ def extract_section_remove_mean(start, end, data):
     chunk = data.loc[start_ts:end_ts].copy()
     chunk['Sea Level'] -= chunk['Sea Level'].mean()
 
-    return chunk 
+    return chunk
 
 
 def join_data(data1, data2):
@@ -97,7 +97,7 @@ def join_data(data1, data2):
 def sea_level_rise(data):
     """Linear regression of sea level vs absolute time in days, returns slope (m/day) & p-value."""
     # uses dropna to remove NaN values in sea level column
-    clean = df.dropna(subset=['Sea Level'])
+    clean = data.dropna(subset=['Sea Level'])
     # x = time
     x = date2num(clean.index)
     # y = sea level measurements
@@ -129,9 +129,17 @@ def tidal_analysis(data, constituents, start_datetime):
     return amp, phase
 
 def get_longest_contiguous_data(data):
-
-
-    return 
+    """Find the longest stretch of Nanless sea level data."""
+    # boolean list linking false to Nan values and true otherwise
+    labeled_list = data['Sea Level'].notna()
+    # detects value change (true -> false vise verser)
+    # makes list like [1,1,2,3,3,3,3,4 etc] incrementing each time theres change
+    inc_groups = (labeled_list != labeled_list.shift()).cumsum()
+    # only looks at true groups
+    # counts how many values are in each group
+    # picks the groups with highest value
+    best = inc_groups[labeled_list].value_counts().idxmax()
+    return data.loc[inc_groups == best]
 
 if __name__ == '__main__':
 
@@ -157,3 +165,13 @@ if __name__ == '__main__':
     # sea level rise
     slope, p_value = sea_level_rise(df)
     print(f"Sea level rise (m/day): {slope:.5e}")
+
+    # longest contiguous block
+    block = get_longest_contiguous_data(df)
+    start, end = block.index[0].date(), block.index[-1].date()
+    print(f"Longest contiguous period: {start} to {end}")
+
+    # tidal constituents
+    amps, phases = tidal_analysis(df, ['M2', 'S2'], df.index[0])
+    print(f"M2 amplitude: {amps[0]:.3f} m")
+    print(f"S2 amplitude: {amps[1]:.3f} m")
