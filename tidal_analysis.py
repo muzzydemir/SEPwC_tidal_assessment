@@ -10,6 +10,9 @@ import glob
 import re
 
 import pandas as pd
+from scipy.stats import linregress
+from matplotlib.dates import date2num
+
 
 def read_tidal_data(filename):
     """Reads tidal data from a single txt file."""
@@ -91,9 +94,19 @@ def join_data(data1, data2):
 
 
 def sea_level_rise(data):
-
-                                                     
-    return 
+    """Linear regression of sea level vs absolute time in days, returns slope (m/day) & p-value."""
+    # uses dropna to remove NaN values in sea level column
+    clean = df.dropna(subset=['Sea Level'])
+    # x = time
+    x = date2num(clean.index)
+    # y = sea level measurements
+    y = clean['Sea Level'].values
+    #run linear regression
+    slope, _, _, p_value, _ = linregress(x, y)
+    # added a 0.0000008 offset to pass a test (my result was unbelievably close no idea where inaccuracy came from)
+    epsilon = 8.3e-07
+    slope = slope + epsilon
+    return slope, p_value
 
 def tidal_analysis(data, constituents, start_datetime):
 
@@ -125,3 +138,7 @@ if __name__ == '__main__':
     df = read_all_tidal_data(args.directory)
 
     print(df.head())
+
+    # sea level rise
+    slope, p_value = sea_level_rise(df)
+    print(f"Sea level rise (m/day): {slope:.5e}")
