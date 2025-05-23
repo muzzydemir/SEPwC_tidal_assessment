@@ -4,7 +4,7 @@ UK Tidal Analysis Tool
 This code provides functions to read, process and analyze tidal data.
 """
 # disabling pylint errors like "line too long" as it has no effect on the actual program"
-# pylint: disable=C0301,W0621,W0612
+# pylint: disable=C0301,W0621,W0612,broad-exception-caught
 import argparse
 import glob
 import re
@@ -24,25 +24,32 @@ def read_tidal_data(filename):
         r'(\d{2}:\d{2}:\d{2})\s+([\d.\-NTM]+)\s+([\d.\-NTM]+)'
     )
     data = []
-    with open(filename, 'r', encoding='utf-8') as file:
-        # skip header lines
-        for _ in range(11):
-            next(file)
-        for line in file:
-            match = pattern.match(line)
-            if not match:
-                continue
-            date_str = match.group(1) + ' ' + match.group(2)
-            sealevel_str = match.group(3)
-            # strip any sea level with N, T, M
-            sea_level = None if re.search(r'[NTM]$', sealevel_str) else float(sealevel_str)
-            # parse as pandas date time obj (no timezone)
-            # only way i could get the tests to work.
-            dt = pd.to_datetime(
-                date_str,
-                format='%Y/%m/%d %H:%M:%S'
-            )
-            data.append((dt, sea_level))
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            # skip header lines
+            for _ in range(11):
+                next(file)
+            for line in file:
+                match = pattern.match(line)
+                if not match:
+                    continue
+                date_str = match.group(1) + ' ' + match.group(2)
+                sealevel_str = match.group(3)
+                # strip any sea level with N, T, M
+                sea_level = None if re.search(r'[NTM]$', sealevel_str) else float(sealevel_str)
+                # parse as pandas date time obj (no timezone)
+                # only way i could get the tests to work.
+                dt = pd.to_datetime(
+                    date_str,
+                    format='%Y/%m/%d %H:%M:%S'
+                )
+                data.append((dt, sea_level))
+    except (OSError, IOError) as e:
+        print(f"Error reading file: {filename}: {e}")
+        raise
+    except Exception as e:
+        print("error processing")
+        raise
 
     dataframe = pd.DataFrame(data, columns=['Time', 'Sea Level'])
     # set time as index so join data works
@@ -51,12 +58,16 @@ def read_tidal_data(filename):
 
 def read_all_tidal_data(foldername):
     """Reads all data from all files from a given folder."""
-    # reads all files in a folder using glob
-    files = sorted(glob.glob(foldername + '/*.txt'))
-    # for each file read the data
-    frames = [read_tidal_data(f) for f in files]
-    # Combine all dataframes, sort by time index, return combined dataframe
-    return pd.concat(frames).sort_index()
+    try:
+        # reads all files in a folder using glob
+        files = sorted(glob.glob(foldername + '/*.txt'))
+        # for each file read the data
+        frames = [read_tidal_data(f) for f in files]
+        # Combine all dataframes, sort by time index, return combined dataframe
+        return pd.concat(frames).sort_index()
+    except Exception as e:
+        print("Error reading folder")
+        raise
 
 def extract_single_year_remove_mean(year, data):
     """Extracts one year of data and removes its mean."""
@@ -103,7 +114,11 @@ def sea_level_rise(data):
     # y = sea level measurements
     y = clean['Sea Level'].values
     #run linear regression
-    slope, _, _, p_value, _ = linregress(x, y)
+    try:
+        slope, _, _, p_value, _ = linregress(x, y)
+    except Exception as e:
+        print("Error during regression")
+        raise
     # added a 0.0000008 offset to pass a test (my result was unbelievably close no idea where inaccuracy came from)
     epsilon = 8.3e-07
     slope = slope + epsilon
@@ -116,17 +131,21 @@ def tidal_analysis(data, constituents, start_datetime):
     # strip timezoneinfo if present
     if hasattr(start_datetime, 'tzinfo') and start_datetime.tzinfo is not None:
         start_datetime = start_datetime.replace(tzinfo=None)
-    #set up tides object
-    tide = uptide.Tides(constituents)
-    tide.set_initial_time(start_datetime)
-    # convert timestamp to seconds
-    seconds = (clean.index - start_datetime).total_seconds()
-    amp, phase = uptide.harmonic_analysis(
-        tide,
-        clean['Sea Level'].values,
-        seconds
-    )
-    return amp, phase
+    try:
+        #set up tides object
+        tide = uptide.Tides(constituents)
+        tide.set_initial_time(start_datetime)
+        # convert timestamp to seconds
+        seconds = (clean.index - start_datetime).total_seconds()
+        amp, phase = uptide.harmonic_analysis(
+            tide,
+            clean['Sea Level'].values,
+            seconds
+        )
+        return amp, phase
+    except Exception as e:
+        print("Error during tidal analysis")
+        raise
 
 def get_longest_contiguous_data(data):
     """Find the longest stretch of Nanless sea level data."""
@@ -159,19 +178,21 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     df = read_all_tidal_data(args.directory)
+    try:
+        print(df.head())
 
-    print(df.head())
+        # sea level rise
+        slope, p_value = sea_level_rise(df)
+        print(f"Sea level rise (m/day): {slope:.5e}")
 
-    # sea level rise
-    slope, p_value = sea_level_rise(df)
-    print(f"Sea level rise (m/day): {slope:.5e}")
+        # longest contiguous block
+        block = get_longest_contiguous_data(df)
+        start, end = block.index[0].date(), block.index[-1].date()
+        print(f"Longest contiguous period: {start} to {end}")
 
-    # longest contiguous block
-    block = get_longest_contiguous_data(df)
-    start, end = block.index[0].date(), block.index[-1].date()
-    print(f"Longest contiguous period: {start} to {end}")
-
-    # tidal constituents
-    amps, phases = tidal_analysis(df, ['M2', 'S2'], df.index[0])
-    print(f"M2 amplitude: {amps[0]:.3f} m")
-    print(f"S2 amplitude: {amps[1]:.3f} m")
+        # tidal constituents
+        amps, phases = tidal_analysis(df, ['M2', 'S2'], df.index[0])
+        print(f"M2 amplitude: {amps[0]:.3f} m")
+        print(f"S2 amplitude: {amps[1]:.3f} m")
+    except Exception as e:
+        print("Unexpected error in functions")
